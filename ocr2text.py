@@ -3,8 +3,6 @@ import shutil
 import errno
 import subprocess
 import tempfile
-import easyocr
-
 from tempfile import mkdtemp
 
 try:
@@ -89,7 +87,7 @@ def extract_tesseract(filename):
 
             for page in sorted(os.listdir(temp_dir)):
                 page_path = os.path.join(temp_dir, page)
-                page_content = pytesseract.image_to_string(Image.open(page_path), lang='chi_sim')
+                page_content = pytesseract.image_to_string(Image.open(page_path))
                 contents.append(page_content)
             return ''.join(contents)
         finally:
