@@ -1,34 +1,25 @@
+# -*- coding: utf-8 -*-
+"""
+@Time    : 2023/5/17 11:43
+@Author  : liyang
+@File    : myocr2txt.py
+@Software: PyCharm
+"""
+
 import os
 import shutil
 import errno
 import subprocess
-import tempfile
-import easyocr
-
 from tempfile import mkdtemp
-
+import easyocr
+import time
+import sys
+import numpy as np
 try:
     from PIL import Image
 except ImportError:
     print('Error: You need to install the "Image" package. Type the following:')
     print('pip install Image')
-
-try:
-    import pytesseract
-except ImportError:
-    print('Error: You need to install the "pytesseract" package. Type the following:')
-    print('pip install pytesseract')
-    exit()
-
-try:
-    from pdf2image import convert_from_path, convert_from_bytes
-except ImportError:
-    print('Error: You need to install the "pdf2image" package. Type the following:')
-    print('pip install pdf2image')
-    exit()
-
-import time
-import sys
 
 
 def update_progress(progress):
@@ -53,47 +44,40 @@ def update_progress(progress):
 
 
 def run(args):
-        # run a subprocess and put the stdout and stderr on the pipe object
         try:
             pipe = subprocess.Popen(
                 args,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             )
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                # File not found.
-                # This is equivalent to getting exitcode 127 from sh
-                raise exceptions.ShellError(
-                    ' '.join(args), 127, '', '',
-                )
-
-        # pipe.wait() ends up hanging on large files. using
-        # pipe.communicate appears to avoid this issue
+        except Exception as e:
+            print(f"Error converting : {e}")
         stdout, stderr = pipe.communicate()
-
-        # if pipe is busted, raise an error (unlike Fabric)
-        if pipe.returncode != 0:
-            raise exceptions.ShellError(
-                ' '.join(args), pipe.returncode, stdout, stderr,
-            )
 
         return stdout, stderr
 
 
 def extract_tesseract(filename):
-        temp_dir = mkdtemp()
-        base = os.path.join(temp_dir, 'conv')
-        contents = []
-        try:
-            stdout, _ = run(['pdftoppm', filename, base])
+    reader = easyocr.Reader(['ch_sim', 'en'], gpu=True)
+    temp_dir = mkdtemp()
+    base = os.path.join(temp_dir, 'conv')
+    contents = []
+    try:
+        stdout, _ = run(['pdftoppm', filename, base])
 
-            for page in sorted(os.listdir(temp_dir)):
-                page_path = os.path.join(temp_dir, page)
-                page_content = pytesseract.image_to_string(Image.open(page_path), lang='chi_sim')
-                contents.append(page_content)
-            return ''.join(contents)
-        finally:
-            shutil.rmtree(temp_dir)
+        for page in sorted(os.listdir(temp_dir)):
+            page_path = os.path.join(temp_dir, page)
+            # page_content = pytesseract.image_to_string(Image.open(page_path), lang='chi_sim')
+            img = Image.open(page_path)
+            im = np.array(img)
+            page_content = reader.readtext(im)
+            print(page_content)
+
+            contents.append(page_content)
+        return ''.join(contents)
+    finally:
+        shutil.rmtree(temp_dir)
+
+
 
 
 def convert_recursive(source, destination, count):
@@ -151,7 +135,7 @@ if destination == '':
 if (os.path.exists(source)):
     if (os.path.isdir(source)):
         count = convert_recursive(source, destination, count)
-    elif os.path.isfile(source):  
+    elif os.path.isfile(source):
         filepath, fullfile = os.path.split(source)
         filename, file_extension = os.path.splitext(fullfile)
         if (file_extension.lower() == '.pdf'):
@@ -162,3 +146,4 @@ if (os.path.exists(source)):
     print(str(count) + ' file' + plural + ' converted')
 else:
     print('The path ' + source + 'seems to be invalid')
+
